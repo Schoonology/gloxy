@@ -7,6 +7,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"strconv"
 )
 
 /**
@@ -37,12 +38,7 @@ func (self *GloxyTransport) RoundTrip(req *http.Request) (res *http.Response, er
 /**
  * Creates a new reverse proxy associated with our logging Transport.
  */
-func NewGloxy(rawurl string) *httputil.ReverseProxy {
-	target, err := url.Parse(rawurl)
-	if err != nil {
-		fmt.Printf("Bad target URL: %v", rawurl)
-		os.Exit(1)
-	}
+func NewGloxy(target *url.URL) *httputil.ReverseProxy {
 	proxy := httputil.NewSingleHostReverseProxy(target)
 	proxy.Transport = &GloxyTransport{}
 	return proxy
@@ -79,8 +75,27 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Printf("Listening on :%d and proxying to %s...", *port, flag.Arg(0))
-	err := http.ListenAndServe(fmt.Sprintf(":%d", *port), NewGloxy(flag.Arg(0)))
+	target, err := url.Parse(flag.Arg(0))
+	if err != nil {
+		fmt.Printf("Bad target URL: %v", flag.Arg(0))
+		os.Exit(1)
+	}
+
+	if target.Scheme == "" {
+		target.Scheme = "http"
+
+		port, err := strconv.ParseInt(target.Path, 0, 0)
+		if err == nil {
+			target.Host = fmt.Sprintf("127.0.0.1:%d", port)
+			target.Path = ""
+		} else {
+			target.Host = target.Path
+			target.Path = ""
+		}
+	}
+
+	fmt.Printf("Listening on :%d and proxying to %v...\n", *port, target)
+	err = http.ListenAndServe(fmt.Sprintf(":%d", *port), NewGloxy(target))
 	if err != nil {
 		fmt.Printf("Failed to Listen with %v", err)
 		os.Exit(1)
