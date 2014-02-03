@@ -49,11 +49,30 @@ func NewGloxy(rawurl string) *httputil.ReverseProxy {
 }
 
 /**
+ * Usage and help information
+ */
+func Usage() {
+	fmt.Fprintf(os.Stderr, "Usage: gloxy [OPTIONS] URL\n\n")
+	fmt.Fprintf(os.Stderr, "Options:\n")
+	flag.VisitAll(func(flag *flag.Flag) {
+		fmt.Fprintf(os.Stderr, "  --%s (%v)  \t%s\n", flag.Name, flag.DefValue, flag.Usage)
+	})
+	fmt.Fprintf(os.Stderr, "\nFor more information, see https://github.com/Schoonology/gloxy.\n")
+}
+
+/**
  * Parse command-line flags and start the proxy server.
  */
 func main() {
 	port := flag.Int("port", 8080, "The port to listen on.")
+	help := flag.Bool("help", false, "Show this help message, then exit.")
 	flag.Parse()
+	flag.Usage = Usage
+
+	if *help {
+		Usage()
+		os.Exit(0)
+	}
 
 	if flag.NArg() < 1 {
 		flag.Usage()
