@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
 )
 
 /**
@@ -15,22 +16,69 @@ import (
  */
 type GloxyTransport struct{}
 
+var PrintableTypes map[string]bool = map[string]bool{
+	"application/atom+xml":              true,
+	"application/ecmascript":            true,
+	"application/json":                  true,
+	"application/javascript":            true,
+	"application/rdf+xml":               true,
+	"application/rss+xml":               true,
+	"application/soap+xml":              true,
+	"application/xhtml+xml":             true,
+	"application/xml":                   true,
+	"application/xml-dtd":               true,
+	"application/x-www-form-urlencoded": true,
+	"text/css":                          true,
+	"text/csv":                          true,
+	"text/html":                         true,
+	"text/javascript":                   true,
+	"text/plain":                        true,
+	"text/vcard":                        true,
+	"text/xml":                          true,
+}
+
+/**
+ * IsPrintable returns true if the Header indicates a printable Request or
+ * Response.
+ */
+func IsPrintable(header http.Header) bool {
+	mimeType := header.Get(http.CanonicalHeaderKey("content-type"))
+	mimeType = strings.SplitN(mimeType, ";", 2)[0]
+	mimeType = strings.TrimSpace(mimeType)
+
+	if mimeType == "" {
+		return true
+	}
+
+	return PrintableTypes[mimeType]
+}
+
 /**
  * The crux of the logging implementation: a Transport.RoundTrips that logs all
  * requests made of it.
  */
 func (self *GloxyTransport) RoundTrip(req *http.Request) (res *http.Response, err error) {
-	reqDump, _ := httputil.DumpRequest(req, true)
-
 	res, err = http.DefaultTransport.RoundTrip(req)
 	if err != nil {
 		return
 	}
 
-	resDump, _ := httputil.DumpResponse(res, true)
+	body := IsPrintable(req.Header)
+	reqDump, _ := httputil.DumpRequest(req, body)
+	if !body {
+		reqDump = append(reqDump, []byte("BINARY\n\n")...)
+	}
+
+	body = IsPrintable(res.Header)
+	resDump, _ := httputil.DumpResponse(res, body)
+	if !body {
+		resDump = append(resDump, []byte("BINARY\n\n")...)
+	}
+
 	fmt.Printf("\n---\n\n")
 	fmt.Printf("%s > %s:\n%s", req.RemoteAddr, flag.Arg(0), reqDump)
 	fmt.Printf("%s < %s:\n%s", flag.Arg(0), req.RemoteAddr, resDump)
+	fmt.Printf("\n")
 
 	return
 }
